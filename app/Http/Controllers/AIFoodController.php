@@ -30,7 +30,8 @@ class AIFoodController extends Controller
         $prompt = "Suggest 3 specific food dishes (available in Malaysia) for someone with a budget of {$request->budget}, feeling {$request->mood}, and craving {$request->preference} food. Only output a valid JSON array of objects with 'name' and 'description' keys. Do not include markdown formatting or backticks.";
 
         try {
-            $response = Http::post("https://generativelanguage.googleapis.com/v1beta/models/gemini-1.5-flash:generateContent?key={$apiKey}", [
+            // Disable SSL verification temporarily in case Laragon doesn't have a valid cacert.pem
+            $response = Http::withoutVerifying()->post("https://generativelanguage.googleapis.com/v1beta/models/gemini-1.5-flash:generateContent?key={$apiKey}", [
                 'contents' => [
                     [
                         'parts' => [
@@ -54,13 +55,21 @@ class AIFoodController extends Controller
                 if (is_array($suggestions)) {
                     return response()->json($suggestions);
                 }
+            } else {
+                return response()->json([
+                    ['name' => 'API Error', 'description' => $response->body()]
+                ]);
             }
         } catch (\Exception $e) {
-            Log::error('Gemini API Error: ' . $e->getMessage());
+            return response()->json([
+                ['name' => 'System Error', 'description' => $e->getMessage()]
+            ]);
         }
 
-        // Fallback if API fails
-        return response()->json($this->getFallbackData($request->preference));
+        // If we reach here, something else failed
+        return response()->json([
+            ['name' => 'Parsing Error', 'description' => 'Failed to parse Gemini response']
+        ]);
     }
 
     private function getFallbackData($preference)
@@ -123,56 +132,64 @@ class AIFoodController extends Controller
         $userLat = $request->latitude;
         $userLon = $request->longitude;
         $selectedFood = $request->selected_food;
+        $apiKey = env('GOOGLE_MAPS_API_KEY');
 
-        // Haversine formula for distance calculation (in km)
-        $haversine = "(6371 * acos(cos(radians($userLat)) 
-                     * cos(radians(restaurants.latitude)) 
-                     * cos(radians(restaurants.longitude) - radians($userLon)) 
-                     + sin(radians($userLat)) 
-                     * sin(radians(restaurants.latitude))))";
+        if (!$apiKey) {
+            return back()->with('error', 'Google Maps API Key is missing. Please configure it in .env.');
+        }
 
-        // Create keywords from selected food for a broader match
-        $keywords = explode(' ', $selectedFood);
-        
-        $query = Food::join('restaurants', 'foods.restaurant_id', '=', 'restaurants.restaurant_id')
-            ->whereNotNull('restaurants.latitude')
-            ->whereNotNull('restaurants.longitude')
-            ->select('foods.*', 'restaurants.restaurant_name', 'restaurants.address', 'restaurants.latitude', 'restaurants.longitude', 'restaurants.contact_number')
-            ->selectRaw("{$haversine} AS distance");
+        try {
+            $response = Http::withoutVerifying()->get('https://maps.googleapis.com/maps/api/place/nearbysearch/json', [
+                'location' => "{$userLat},{$userLon}",
+                'radius' => 10000, // 10km radius
+                'type' => 'restaurant',
+                'keyword' => $selectedFood,
+                'key' => $apiKey
+            ]);
 
-        // Try to match keywords in food name or category
-        $query->where(function($q) use ($keywords, $selectedFood) {
-            $q->where('foods.food_name', 'LIKE', "%{$selectedFood}%")
-              ->orWhere('foods.food_category', 'LIKE', "%{$selectedFood}%")
-              ->orWhere('restaurants.restaurant_category', 'LIKE', "%{$selectedFood}%");
-              
-            foreach($keywords as $word) {
-                if(strlen($word) > 3) { // Ignore short words like 'and', 'the', 'of'
-                    $q->orWhere('foods.food_name', 'LIKE', "%{$word}%")
-                      ->orWhere('foods.food_category', 'LIKE', "%{$word}%")
-                      ->orWhere('restaurants.restaurant_category', 'LIKE', "%{$word}%");
+            $restaurants = [];
+
+            if ($response->successful()) {
+                $data = $response->json();
+                
+                if (isset($data['results'])) {
+                    // Take top 5 results
+                    $results = array_slice($data['results'], 0, 5);
+                    
+                    foreach ($results as $place) {
+                        $restaurants[] = (object) [
+                            'restaurant_name' => $place['name'] ?? 'Unknown Restaurant',
+                            'address' => $place['vicinity'] ?? 'Address not available',
+                            'rating' => $place['rating'] ?? 'N/A',
+                            'user_ratings_total' => $place['user_ratings_total'] ?? 0,
+                            'latitude' => $place['geometry']['location']['lat'] ?? null,
+                            'longitude' => $place['geometry']['location']['lng'] ?? null,
+                            'place_id' => $place['place_id'] ?? null,
+                            // Calculate straight-line distance roughly
+                            'distance' => $this->calculateDistance($userLat, $userLon, $place['geometry']['location']['lat'], $place['geometry']['location']['lng'])
+                        ];
+                    }
                 }
             }
-        });
-
-        $restaurants = $query->orderBy('distance')
-            ->take(5)
-            ->get();
-
-        // If no match found, fallback to closest restaurants regardless of food
-        if ($restaurants->isEmpty()) {
-            $restaurants = Food::join('restaurants', 'foods.restaurant_id', '=', 'restaurants.restaurant_id')
-                ->whereNotNull('restaurants.latitude')
-                ->whereNotNull('restaurants.longitude')
-                ->select('foods.*', 'restaurants.restaurant_name', 'restaurants.address', 'restaurants.latitude', 'restaurants.longitude', 'restaurants.contact_number')
-                ->selectRaw("{$haversine} AS distance")
-                ->orderBy('distance')
-                ->take(5)
-                ->get();
+        } catch (\Exception $e) {
+            Log::error('Google Places API Error: ' . $e->getMessage());
         }
 
         $moodName = $request->mood ?? 'Happy';
 
         return view('recommendations.top5', compact('restaurants', 'selectedFood', 'moodName', 'userLat', 'userLon'));
+    }
+
+    /**
+     * Calculate Haversine distance in KM
+     */
+    private function calculateDistance($lat1, $lon1, $lat2, $lon2)
+    {
+        $theta = $lon1 - $lon2;
+        $dist = sin(deg2rad($lat1)) * sin(deg2rad($lat2)) +  cos(deg2rad($lat1)) * cos(deg2rad($lat2)) * cos(deg2rad($theta));
+        $dist = acos($dist);
+        $dist = rad2deg($dist);
+        $miles = $dist * 60 * 1.1515;
+        return round($miles * 1.609344, 2); // Convert to KM
     }
 }

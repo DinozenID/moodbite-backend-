@@ -32,8 +32,8 @@
                             <div class="card-body p-4">
                                 <div class="d-flex justify-content-between align-items-start mb-3">
                                     <div>
-                                        <span class="badge bg-primary bg-opacity-10 text-primary mb-2 px-3 py-2 rounded-pill">
-                                            {{ $restaurant->food_category ?? 'Recommended' }}
+                                        <span class="badge bg-warning text-dark mb-2 px-3 py-2 rounded-pill">
+                                            <i class="bi bi-star-fill text-danger"></i> {{ $restaurant->rating }} ({{ $restaurant->user_ratings_total }} reviews)
                                         </span>
                                         <h4 class="fw-bold mb-1">{{ $restaurant->restaurant_name }}</h4>
                                         <p class="text-muted mb-0">
@@ -46,24 +46,11 @@
                                     </div>
                                 </div>
 
-                                <div class="d-flex align-items-center mb-3 p-3 bg-light rounded-3">
-                                    <div class="me-3">
-                                        <div class="bg-white p-2 rounded shadow-sm">
-                                            <i class="bi bi-cup-hot text-warning fs-4"></i>
-                                        </div>
-                                    </div>
-                                    <div>
-                                        <h6 class="fw-bold mb-1">{{ $restaurant->food_name ?? $selectedFood }}</h6>
-                                        <p class="text-muted small mb-0">{{ $restaurant->food_description ?? 'Available here.' }}</p>
-                                    </div>
-                                </div>
-
                                 <div class="d-flex justify-content-between align-items-center">
                                     <div>
                                         <p class="mb-1 small"><i class="bi bi-map me-2 text-primary"></i> {{ $restaurant->address ?? 'Address not available' }}</p>
-                                        <p class="mb-0 small"><i class="bi bi-telephone me-2 text-primary"></i> {{ $restaurant->contact_number ?? 'Contact not available' }}</p>
                                     </div>
-                                    <a href="https://www.google.com/maps/dir/?api=1&origin={{ $userLat }},{{ $userLon }}&destination={{ $restaurant->latitude }},{{ $restaurant->longitude }}" 
+                                    <a href="https://www.google.com/maps/dir/?api=1&origin={{ $userLat }},{{ $userLon }}&destination={{ $restaurant->latitude }},{{ $restaurant->longitude }}&destination_place_id={{ $restaurant->place_id }}" 
                                        target="_blank" 
                                        class="btn btn-primary rounded-pill shadow-sm">
                                         <i class="bi bi-navigation me-1"></i> Go
