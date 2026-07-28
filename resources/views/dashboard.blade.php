@@ -23,8 +23,6 @@
 
 </div>
 
-@endsection
-
 <div class="card shadow-lg border-0 rounded-4 p-4 mt-4">
 
 <h3 class="fw-bold mb-4">
@@ -116,6 +114,7 @@ document.addEventListener('DOMContentLoaded', function() {
                 if (loadingModal) loadingModal.hide();
             }
         });
-    });
 });
 </script>
+
+@endsection

@@ -22,7 +22,7 @@ class RestaurantController extends Controller
      */
     public function create()
     {
-        //
+        return view('admin.restaurants.create');
     }
 
     /**
@@ -30,7 +30,18 @@ class RestaurantController extends Controller
      */
     public function store(Request $request)
     {
-        //
+        $validated = $request->validate([
+            'restaurant_name' => 'required|string|max:255',
+            'address' => 'required|string',
+            'contact_number' => 'nullable|string|max:20',
+            'latitude' => 'required|numeric',
+            'longitude' => 'required|numeric',
+        ]);
+
+        Restaurant::create($validated);
+
+        return redirect()->route('admin.restaurants.index')
+            ->with('success', 'Restaurant created successfully.');
     }
 
     /**
@@ -46,7 +57,7 @@ class RestaurantController extends Controller
      */
     public function edit(Restaurant $restaurant)
     {
-        //
+        return view('admin.restaurants.edit', compact('restaurant'));
     }
 
     /**
@@ -54,7 +65,18 @@ class RestaurantController extends Controller
      */
     public function update(Request $request, Restaurant $restaurant)
     {
-        //
+        $validated = $request->validate([
+            'restaurant_name' => 'required|string|max:255',
+            'address' => 'required|string',
+            'contact_number' => 'nullable|string|max:20',
+            'latitude' => 'required|numeric',
+            'longitude' => 'required|numeric',
+        ]);
+
+        $restaurant->update($validated);
+
+        return redirect()->route('admin.restaurants.index')
+            ->with('success', 'Restaurant updated successfully.');
     }
 
     /**
@@ -62,6 +84,8 @@ class RestaurantController extends Controller
      */
     public function destroy(Restaurant $restaurant)
     {
-        //
+        $restaurant->delete();
+        return redirect()->route('admin.restaurants.index')
+            ->with('success', 'Restaurant deleted successfully.');
     }
 }

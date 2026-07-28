@@ -18,12 +18,17 @@ Route::post('/register', [AuthController::class, 'register']);
 Route::post('/logout', [AuthController::class, 'logout'])->name('logout');
 
 use App\Http\Controllers\RecommendationController;
+use App\Http\Controllers\AIFoodController;
 
 // Dashboard
 Route::middleware('auth')->group(function () {
 
     Route::get('/dashboard', [DashboardController::class, 'index']);
     Route::post('/recommend', [RecommendationController::class, 'suggest'])->name('recommend');
+    
+    // AI Integration Routes
+    Route::post('/ai/generate', [AIFoodController::class, 'generate'])->name('ai.generate');
+    Route::post('/ai/recommend', [AIFoodController::class, 'recommendRestaurants'])->name('ai.recommend');
 
 });
 
