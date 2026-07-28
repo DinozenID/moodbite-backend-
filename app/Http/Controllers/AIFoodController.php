@@ -31,7 +31,7 @@ class AIFoodController extends Controller
 
         try {
             // Disable SSL verification temporarily in case Laragon doesn't have a valid cacert.pem
-            $response = Http::withoutVerifying()->post("https://generativelanguage.googleapis.com/v1beta/models/gemini-1.5-flash:generateContent?key={$apiKey}", [
+            $response = Http::withoutVerifying()->post("https://generativelanguage.googleapis.com/v1beta/models/gemini-2.0-flash:generateContent?key={$apiKey}", [
                 'contents' => [
                     [
                         'parts' => [
